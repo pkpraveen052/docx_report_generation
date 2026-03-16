@@ -29,7 +29,7 @@ class IrActionsReport(models.Model):
             "validate_custom_report_field",
         }
 
-    def get_custom_report_field_values(self):
+    def get_custom_report_field_values(self, docids=None):
         """
         Returns: dict with computed custom fields values.
         """
@@ -39,8 +39,15 @@ class IrActionsReport(models.Model):
             [("ir_actions_report_id", "=", self.id)]
         )
         custom_report_field_values = {}
+        eval_context = {}
+        if docids:
+            eval_context = {
+                "active_model": self.model,
+                "active_ids": docids,
+                "active_id": docids[0],
+            }
         for field_rec in report_custom_field_ids:
-            field_value = field_rec.compute_value(self)
+            field_value = field_rec.with_context(**eval_context).compute_value(self)
             if field_rec.required and not field_value:
                 raise UserError(
                     """Required custom field %s of the report is not filled. It's value: %s.
@@ -59,5 +66,5 @@ class IrActionsReport(models.Model):
         :return: dict, updated context.
         """
         data = super()._get_rendering_context(docids, data)
-        data.update(self.get_custom_report_field_values())
+        data.update(self.get_custom_report_field_values(docids=docids))
         return data

@@ -66,10 +66,10 @@ class CustomReportField(models.Model):
     def _get_eval_context(self, action=None):
         eval_context = self.env["ir.actions.actions"]._get_eval_context(action=action)
         eval_context.update(self.env.context)
-        model_name = action.model_id.sudo().model
+        model_name = action.model_id.sudo().model or action.model
         model = self.env[model_name]
-        record = None
-        records = None
+        record = model.browse()
+        records = model.browse()
         _logger.error(
             f"\n\n\nself._context:\n{self._context}\nself.env.context:\n{self.env.context}\n\n\n"
         )
@@ -81,6 +81,7 @@ class CustomReportField(models.Model):
             "active_ids"
         ):
             records = model.browse(self._context["active_ids"])
+            record = record or records[:1]
         eval_context.update(
             {
                 # orm
