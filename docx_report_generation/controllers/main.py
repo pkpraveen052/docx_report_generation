@@ -12,7 +12,7 @@ from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.web.controllers.main import ReportController
 from odoo import http
-import json,subprocess
+import json
 from odoo.http import content_disposition, request, route, serialize_exception
 import base64
 import werkzeug
@@ -81,41 +81,11 @@ class DocxReportController(ReportController):
             return request.make_response(base64.b64decode(encoded_content), headers=docxhttpheaders)
         elif converter == "pdf" and "docx" in report.report_type:
             print("if converter == 'pdf' and 'docx'....")
-            docx = report.with_context(context)._render_docx_docx(docids, data=data)
-
-            # Save the DOCX file temporarily
-            docx_file_path = "/tmp/temp_report.docx"
-            pdf_file_path = "/tmp/temp_report.pdf"
-
-            with open(docx_file_path, "wb") as docx_file:
-                docx_file.write(docx[0])
-
-            # Convert DOCX to PDF using LibreOffice
-            try:
-                subprocess.run([
-                    "libreoffice",
-                    "--headless",
-                    "--convert-to",
-                    "pdf",
-                    "--outdir",
-                    "/tmp",
-                    docx_file_path
-                ], check=True)
-            except subprocess.CalledProcessError as e:
-                # Handle conversion error
-                return request.make_response("Error during DOCX to PDF conversion: %s" % e, status=500)
-
-            # Read the converted PDF
-            with open(pdf_file_path, "rb") as pdf_file:
-                pdf_content = pdf_file.read()
-
-            # Clean up temporary files
-            import os
-            os.remove(docx_file_path)
-            os.remove(pdf_file_path)
+            pdf_content = report.with_context(context)._render_docx_pdf(docids, data=data)[0]
             # Return PDF response
             pdf_http_headers = [
-                ("Content-Type", "application/pdf")
+                ("Content-Type", "application/pdf"),
+                ("Content-Length", len(pdf_content)),
             ]
             # Return PDF response
             return request.make_response(pdf_content, headers=pdf_http_headers)
