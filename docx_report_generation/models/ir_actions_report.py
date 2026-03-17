@@ -2,6 +2,9 @@ from base64 import b64decode
 from collections import OrderedDict
 from io import BytesIO
 from logging import getLogger
+from os import path
+from subprocess import CalledProcessError, run
+from tempfile import TemporaryDirectory
 
 from docx import Document
 from docxcompose.composer import Composer
@@ -132,9 +135,12 @@ class IrActionsReport(models.Model):
         )
 
         if not pdf_content:
+            pdf_content = self._get_pdf_from_libreoffice(docx_content)
+
+        if not pdf_content:
             raise UserError(
                 _(
-                    "Gotenberg converting service not available. The PDF can not be created."
+                    "Unable to convert DOCX report to PDF. Please check Gotenberg or LibreOffice availability."
                 )
             )
 
@@ -398,3 +404,40 @@ class IrActionsReport(models.Model):
             _logger.exception(e)
         finally:
             return result
+
+    def _get_pdf_from_libreoffice(self, content_stream):
+        """
+        Fallback-конвертация docx в pdf через локальный LibreOffice.
+        """
+        try:
+            with TemporaryDirectory() as tmp_dir:
+                docx_path = path.join(tmp_dir, "converted_file.docx")
+                pdf_path = path.join(tmp_dir, "converted_file.pdf")
+
+                content_stream.seek(0)
+                with open(docx_path, "wb") as docx_file:
+                    docx_file.write(content_stream.read())
+
+                run(
+                    [
+                        "libreoffice",
+                        "--headless",
+                        "--convert-to",
+                        "pdf",
+                        "--outdir",
+                        tmp_dir,
+                        docx_path,
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
+
+                if path.exists(pdf_path):
+                    with open(pdf_path, "rb") as pdf_file:
+                        return pdf_file.read()
+        except (CalledProcessError, FileNotFoundError, OSError) as error:
+            _logger.warning("LibreOffice PDF conversion failed: %s", error)
+        finally:
+            content_stream.seek(0)
+
+        return None
